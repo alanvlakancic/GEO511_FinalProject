@@ -2,15 +2,21 @@ project:
   type: website
 
 website:
-  title: "GEO511_FinalProject"
+  title: "GEO 511 Final Project"
   navbar:
     left:
       - href: index.qmd
         text: Home
-      - about.qmd
-
+      - href: about.qmd
+        text: About
 format:
   html:
     theme: cosmo
-    includes:
-        after_body: include/after_body.html
+    highlight: monochrome
+    toc: true
+    toc_float: false
+    toc_depth: 4
+    code-fold: true
+    css: styles.css
+    include-after-body: include/after_body.html
+
