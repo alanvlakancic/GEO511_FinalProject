@@ -1,0 +1,30 @@
+[
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Analyzing Urban Mobility Patterns Using stplanr",
+    "section": "",
+    "text": "[~ 200 words]\nClearly stated background and questions / hypotheses / problems being addressed. Sets up the analysis in an interesting and compelling way. Include figures if you like."
+  },
+  {
+    "objectID": "index.html#download-and-clean-all-required-data",
+    "href": "index.html#download-and-clean-all-required-data",
+    "title": "Analyzing Urban Mobility Patterns Using stplanr",
+    "section": "Download and clean all required data",
+    "text": "Download and clean all required data\n\n\nCode\nn=20\ndata=data.frame(x=runif(n,-180,180),\n                y=runif(n,-60,60),\n                size = runif(n, 5, 20),\n                category = factor(\n                  sample(letters[1:5], n, replace = TRUE)\n                  ),\n                value = rnorm(n))\n\n\n\nCode\ndata %&gt;% \n  slice(1:10) %&gt;% #show only 1:n rows\n  kable(digits=2,align=\"c\")%&gt;% #make table and round to two digits\n  kable_styling(bootstrap_options = \n                  c(\"striped\", \"hover\", \"condensed\", \"responsive\")) #apply other formatting\n\n\n\n\n\nx\ny\nsize\ncategory\nvalue\n\n\n\n\n148.18\n-28.60\n6.17\nd\n-0.37\n\n\n54.02\n23.81\n6.32\ne\n-0.41\n\n\n165.83\n-13.85\n16.35\nd\n-1.73\n\n\n174.36\n23.91\n10.55\ne\n-0.48\n\n\n116.50\n-56.81\n18.17\nd\n-0.33\n\n\n-160.48\n42.96\n5.84\na\n1.03\n\n\n35.39\n-59.37\n11.03\ne\n-1.58\n\n\n-169.40\n23.57\n12.64\nb\n-0.11\n\n\n-114.45\n58.58\n19.67\nc\n1.39\n\n\n-30.02\n-42.35\n16.95\nc\n0.09\n\n\n\n\n\n\nAdd any additional processing steps here."
+  },
+  {
+    "objectID": "about.html",
+    "href": "about.html",
+    "title": "About",
+    "section": "",
+    "text": "About this site\n\n\nCode\n1 + 1\n\n\n[1] 2"
+  },
+  {
+    "objectID": "data/Readme.html",
+    "href": "data/Readme.html",
+    "title": "Data Folder",
+    "section": "",
+    "text": "Data Folder\nPlace any data needed by your analysis in this folder. Please do not store large files here. Then read in any data using the ‘data’ path. For example, read_csv(\"data/data.csv\")."
+  }
+]
