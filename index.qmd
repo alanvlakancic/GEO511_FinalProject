@@ -1,120 +1,125 @@
 ---
-title: "Analyzing Urban Mobility Patterns Using stplanr"
-author: Alan Vlakancic
-subtitle: Routes In New York City, NY
+title: "Euclidean Bus Mobility and Route Optimization, A Comparison"
+author: "Alan Vlakancic"
+subtitle: "Routes in Queens, New York City, NY"
 date: today
 date-format: long
+format:
+  html:
+    toc: true
+    code-fold: true
+    fig-width: 10
+    fig-height: 8
+editor: visual
 ---
 
 # Introduction
+This project will use stplanr transport modeling package to design an optimal transport route for bus or cycle routes in New York City. Stplanr is a transport planning visualization R package that can be used to plan transit networks, in addition to transit planning elements such as identifying transit catchment areas, origin/destination data and ride frequency visualizations, among others.  In their white paper, the devlopers of stplanr call for an accountable, transparent and democratized transit planning system that doesn’t rely on proprietary and often vastly different data sources and data processing softwares. Although the package can visualize a whole host of data, this project will focus on comparing direct desire lines or “Euclidean” routes (as the crow flies), existing bus networks and stplanr’s optimized routes. To wit: this can map the efficiency of the bus routes compared to the most direct route possible if there were no built environment factors in the way.
 
-\[\~ 200 words\]
 
-Clearly stated background and questions / hypotheses / problems being addressed. Sets up the analysis in an interesting and compelling way. Include figures if you like.
+# Methods
 
-# Materials and methods
+To adequately compare desire lines, bus routes, and the most efficient routes with the current street network, this project will require at minimum three data sources. Each of these will be sourced separately and overlaid onto each other:
 
-\[\~ 200 words\]
+- **Data Source:** ggmap data for basemap  
+  - **Methods:** This can be sourced directly into R by installing the package. ggmap can bring in data from Stadiamaps. This will require a Google API key to be registered.  
+  - **Source:** [Getting Started with ggmap & Stadiamaps](https://docs.stadiamaps.com/tutorials/getting-started-in-r-with-ggmap/)
 
-Narrative: Clear narrative description of the data sources and methods. Includes data from at least two sources that were integrated / merged in R.
+- **Data Source:** OpenStreetMap data for transit data, either bus or cycle routes  
+  - **Methods:** This can be sourced directly into R by installing the package. You may need to rationalize different projection systems to make sure they overlay correctly.  
+  - **Source:** [Mapping with OpenStreetMap in R](https://ajsmit.github.io/Intro_R_Official/mapping-google.html)
 
-Code: The code associated with the project is well organized and easy to follow. Demonstrates mastery of R graphics and functions.
+- **Data Source:** NYC Open Data for Bus Shelter locations  
+  Despite significant searching, there is no comprehensive bus stop dataset, so the project will focus on bus stop shelters, which are mapped via NYC Open Data.  
+  - **Methods:** This can be brought into R as a CSV file. Each bus stop shelter has longitude and latitude coordinates that align with ggmap and OpenStreetMap projections.  
+  - **Source:** [NYC Bus Stop Shelters](https://data.cityofnewyork.us/Transportation/Bus-Stop-Shelters/qafz-7myz)
 
-Data: The underlying data are publicly accessible via the web and downloaded/accessed within the Rmd script. If you want to use your own data, you must make it available on a website (e.g. Figshare) so that others are able to re-run your code.
 
-You can do bullets like this:
 
--   The first most important thing
--   The second most important thing
--   The third most important thing
-
-You can do numbers like this:
-
-1.  The first most important thing
-2.  The second most important thing
-3.  The third most important thing
-
-See <http://rmarkdown.rstudio.com/> for all the amazing things you can do.
-
-Here's my first code chunk.
-
-```{r}
-x=3+4
-```
-
-Refer to output in your narrative like this: x=`r x` .
-
-Load any required packages in a code chunk (you may need to install some packages):
-
-```{r, message=F, warning=F}
+Code:
+````{r, eval=FALSE}
+install.packages("ggmap")
+install.packages("stplanr")
+install.packages("osmdata")
+install.packages("sf")
+install.packages("dodgr")
+library(ggmap)
+library(stplanr)
+library(osmdata)
+library(sf)
 library(tidyverse)
-library(leaflet)
-library(kableExtra)
-library(htmlwidgets)
-library(widgetframe)
-knitr::opts_chunk$set(widgetframe_widgets_dir = 'widgets' ) 
-knitr::opts_chunk$set(cache=TRUE)  # cache the results for quick compiling
-```
+library(dodgr)
 
-## Download and clean all required data
+queens_bbox <- c(left = -73.96, bottom = 40.54, right = -73.70, top = 40.81)
 
-```{r}
-n=20
-data=data.frame(x=runif(n,-180,180),
-                y=runif(n,-60,60),
-                size = runif(n, 5, 20),
-                category = factor(
-                  sample(letters[1:5], n, replace = TRUE)
-                  ),
-                value = rnorm(n))
-```
+ggmap::register_stadiamaps(key = "324ab7fd-26ce-4b7d-924b-38f00bc9f021")
+nyc_map <- get_stadiamap(
+  bbox = queens_bbox,
+  zoom = 10,
+  maptype = "stamen_toner"
+)
+ggmap(nyc_map)
+#googling identifies that this is in WGS 84
 
-```{r, results='asis'}
-data %>% 
-  slice(1:10) %>% #show only 1:n rows
-  kable(digits=2,align="c")%>% #make table and round to two digits
-  kable_styling(bootstrap_options = 
-                  c("striped", "hover", "condensed", "responsive")) #apply other formatting
-```
+shelters_sf <- read_csv("data/Bus_Stop_Shelter_20251020.csv")
+#download and import bus shelters
 
-Add any additional processing steps here.
+shelters_sf_fix <- st_as_sf(shelters_sf, coords = c("Longitude", "Latitude"), crs = 4326)
+#convert to sf (simple feature) object with the correct coordinate reference system
 
-# Results
+ggmap(nyc_map) +
+  geom_sf(data = shelters_sf_fix, inherit.aes = FALSE, color = "blue", size = .5)
+#plot shelters on the map
 
-\[\~200 words\]
+osm_queens <- opq(bbox = queens_bbox) %>%
+  add_osm_feature(key = "highway", value = c("primary", "secondary")) %>%
+  osmdata_sf()
+#import osm data
 
-Tables and figures (maps and other graphics) are carefully planned to convey the results of your analysis. Intense exploration and evidence of many trials and failures. The author looked at the data in many different ways before coming to the final presentation of the data.
 
-Show tables, plots, etc. and describe them.
+ggmap(nyc_map) +
+  geom_sf(data = osm_queens$osm_lines, inherit.aes = FALSE, color = "red", size = 0.5, alpha = 0.6) +
+  geom_sf(data = shelters_sf_fix, inherit.aes = FALSE, color = "blue", size = 1)
 
-```{r, fig.width=6, fig.height=3, fig.cap="Map of completely random data"}
-m <- leaflet(data) %>% 
-  addTiles() %>% 
-  addCircleMarkers(~x, ~y, radius = ~size,color = ~as.factor(category)) %>% 
-  addPopups(~x[2], ~y[2], "Random popup")
-m  # a map with the default OSM tile layer
-```
+shelters_sf_fix <- shelters_sf_fix %>%
+  mutate(id = paste0("S", row_number()))
+# add ID column for origin-destination pairs
 
-```{r}
-data %>% 
-  ggplot(aes(x=x,y=y,col=category))+
-  geom_point()
-```
+flow_all <- expand.grid(
+  o = shelters_sf_fix$id,
+  d = shelters_sf_fix$id,
+  stringsAsFactors = FALSE
+) %>%
+  filter(o != d) %>%              # this remove self-pairs
+  mutate(trips = 1)
+# create origin-destination pairs with a trip count of 1
 
-### Dygraphs Example
+flow_all <- sample_n(flow_all, 500)
+# sample 500 random pairs to reduce computation
 
-```{r}
-library(dygraphs)
-dygraph(nhtemp, main = "New Haven Temperatures") |> 
-  dyRangeSelector(dateWindow = c("1920-01-01", "1960-01-01")) 
-```
+desire_lines_all <- od2line(flow_all, zones = shelters_sf_fix, zone_code = "id")
+# create desire lines for all pairs
 
-# Conclusions
 
-\[\~200 words\]
+desire_plot <- ggmap(nyc_map) +
+  geom_sf(data = osm_queens$osm_lines, inherit.aes = FALSE,
+          color = "gray60", size = 0.3, alpha = 0.6) +
+  geom_sf(data = desire_lines_all, inherit.aes = FALSE,
+          color = "red", size = 0.3, alpha = 0.5) +
+  geom_sf(data = shelters_sf_fix, inherit.aes = FALSE,
+          color = "blue", size = 1) +
+  ggtitle("Desire Lines Between All Bus Shelters in Queens")
+# plot desire lines along with roads and shelters
 
-Clear summary adequately describing the results and putting them in context. Discussion of further questions and ways to continue investigation.
+plot(desire_plot)
 
-# References
+ggsave(
+  filename = "TBD/desire_lines_queens.png",
+  plot = desire_plot,
+  width = 10,    # width in inches
+  height = 8,    # height in inches
+  dpi = 300      # resolution in dots per inch
+)
+````
 
-All sources are cited in a consistent manner
+
