@@ -34,9 +34,7 @@ To adequately compare desire lines, bus routes, and the most efficient routes wi
   - **Methods:** This can be brought into R as a CSV file. Each bus stop shelter has longitude and latitude coordinates that align with ggmap and OpenStreetMap projections.  
   - **Source:** [NYC Bus Stop Shelters](https://data.cityofnewyork.us/Transportation/Bus-Stop-Shelters/qafz-7myz)
 
-
-
-Code:
+# Code:
 ````{r, eval=FALSE}
 install.packages("ggmap")
 install.packages("stplanr")
@@ -113,13 +111,13 @@ desire_plot <- ggmap(nyc_map) +
 
 plot(desire_plot)
 
-ggsave(
-  filename = "TBD/desire_lines_queens.png",
-  plot = desire_plot,
-  width = 10,    # width in inches
-  height = 8,    # height in inches
-  dpi = 300      # resolution in dots per inch
-)
+
 ````
-
-
+# Figure
+![](images/desire_lines_queens.png){caption="Bus Shelters in Queens" }
+# Questions
+- Naturally, a silhouette instead of the Stadia map would be more attractive, if there's one you can suggest.
+- I am struggling to figure out how to use the Open Street Map data (osm) as a 'route' for stplanr to analyze. It's currently just a sf, so it's not a vector.
+  - The dodgr package does this, I just have not figured it out yet.
+- Looking to do something that looks like this: 
+  - ![Desire Lines vs Actual Routes](https://user-images.githubusercontent.com/1825120/142071229-81358e26-5e8d-437e-9ef8-91704a4e690f.png)
