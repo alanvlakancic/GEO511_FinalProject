@@ -14,107 +14,243 @@ editor: visual
 ---
 
 # Introduction
-This project will use stplanr transport modeling package to design an optimal transport route for bus or cycle routes in New York City. Stplanr is a transport planning visualization R package that can be used to plan transit networks, in addition to transit planning elements such as identifying transit catchment areas, origin/destination data and ride frequency visualizations, among others.  In their white paper, the devlopers of stplanr call for an accountable, transparent and democratized transit planning system that doesn’t rely on proprietary and often vastly different data sources and data processing softwares. Although the package can visualize a whole host of data, this project will focus on comparing direct desire lines or “Euclidean” routes (as the crow flies), existing bus networks and stplanr’s optimized routes. To wit: this can map the efficiency of the bus routes compared to the most direct route possible if there were no built environment factors in the way.
 
+This project will use stplanr transport modeling package to design an optimal transport route for bus or cycle routes in New York City. Stplanr is a transport planning visualization R package that can be used to plan transit networks, in addition to transit planning elements such as identifying transit catchment areas, origin/destination data and ride frequency visualizations, among others. In their white paper, the devlopers of stplanr call for an accountable, transparent and democratized transit planning system that doesn’t rely on proprietary and often vastly different data sources and data processing softwares. Although the package can visualize a whole host of data, this project will focus on comparing direct desire lines or “Euclidean” routes (as the crow flies), existing bus networks and stplanr’s optimized routes. To wit: this can map the efficiency of the bus routes compared to the most direct route possible if there were no built environment factors in the way.
 
 # Methods
 
 To adequately compare desire lines, bus routes, and the most efficient routes with the current street network, this project will require at minimum three data sources. Each of these will be sourced separately and overlaid onto each other:
 
-- **Data Source:** ggmap data for basemap  
-  - **Methods:** This can be sourced directly into R by installing the package. ggmap can bring in data from Stadiamaps. This will require a Google API key to be registered.  
-  - **Source:** [Getting Started with ggmap & Stadiamaps](https://docs.stadiamaps.com/tutorials/getting-started-in-r-with-ggmap/)
-
-- **Data Source:** OpenStreetMap data for transit data, either bus or cycle routes  
-  - **Methods:** This can be sourced directly into R by installing the package. You may need to rationalize different projection systems to make sure they overlay correctly.  
-  - **Source:** [Mapping with OpenStreetMap in R](https://ajsmit.github.io/Intro_R_Official/mapping-google.html)
-
-- **Data Source:** NYC Open Data for Bus Shelter locations  
-  Despite significant searching, there is no comprehensive bus stop dataset, so the project will focus on bus stop shelters, which are mapped via NYC Open Data.  
-  - **Methods:** This can be brought into R as a CSV file. Each bus stop shelter has longitude and latitude coordinates that align with ggmap and OpenStreetMap projections.  
-  - **Source:** [NYC Bus Stop Shelters](https://data.cityofnewyork.us/Transportation/Bus-Stop-Shelters/qafz-7myz)
+-   **Data Source:** ggmap data for basemap
+    -   **Methods:** This can be sourced directly into R by installing the package. ggmap can bring in data from Stadiamaps. This will require a Google API key to be registered.\
+    -   **Source:** [Getting Started with ggmap & Stadiamaps](https://docs.stadiamaps.com/tutorials/getting-started-in-r-with-ggmap/)
+-   **Data Source:** OpenStreetMap data for transit data, either bus or cycle routes
+    -   **Methods:** This can be sourced directly into R by installing the package. You may need to rationalize different projection systems to make sure they overlay correctly.\
+    -   **Source:** [Mapping with OpenStreetMap in R](https://ajsmit.github.io/Intro_R_Official/mapping-google.html)
+-   **Data Source:** NYC Open Data for Bus Shelter locations\
+    Despite significant searching, there is no comprehensive bus stop dataset, so the project will focus on bus stop shelters, which are mapped via NYC Open Data.
+    -   **Methods:** This can be brought into R as a CSV file. Each bus stop shelter has longitude and latitude coordinates that align with ggmap and OpenStreetMap projections.\
+    -   **Source:** [NYC Bus Stop Shelters](https://data.cityofnewyork.us/Transportation/Bus-Stop-Shelters/qafz-7myz)
 
 # Workflow:
-````{r, eval=FALSE}
-install.packages("ggmap")
-install.packages("stplanr")
-install.packages("osmdata")
-install.packages("sf")
-install.packages("dodgr")
+
+```{r, eval=TRUE, warnings=FALSE, message=FALSE}
 library(ggmap)
 library(stplanr)
 library(osmdata)
 library(sf)
 library(tidyverse)
-library(dodgr)
+library(leaflet)
+library(purrr)
 
-#this workflow includes map tests to ensure the data is working
+bbox <- c(left = -73.96, bottom = 40.54, right = -73.70, top = 40.81)
+#create bounding box for queens
 
-queens_bbox <- c(left = -73.96, bottom = 40.54, right = -73.70, top = 40.81)
+nyc_map <- "data/"
 
-ggmap::register_stadiamaps(key = "324ab7fd-26ce-4b7d-924b-38f00bc9f021")
-nyc_map <- get_stadiamap(
-  bbox = queens_bbox,
-  zoom = 10,
-  maptype = "stamen_toner"
-)
-ggmap(nyc_map)
-#googling identifies that this is in WGS 84
+#nyc basemap, downloaded from nyc open data. source: https://search.r-project.org/CRAN/refmans/ptools/html/nyc_bor.html
+
+nyc_sf <- st_read(nyc_map)
+#bring in nyc_map as a sf
+
 
 shelters_sf <- read_csv("data/Bus_Stop_Shelter_20251020.csv")
-#download and import bus shelters
+#NOTE: REPLACE WITH DATA WHEN USING QUARTO!
+#this brings in the bus stop shelter information. source: https://data.cityofnewyork.us/Transportation/Bus-Stop-Shelters/qafz-7myz
 
-shelters_sf_fix <- st_as_sf(shelters_sf, coords = c("Longitude", "Latitude"), crs = 4326)
-#convert to sf (simple feature) object with the correct coordinate reference system
+shelters_sf_fix <- st_as_sf(shelters_sf, coords = c("Longitude","Latitude"), crs = 4326)
+#convert to sf object with the correct coordinate reference system
 
-ggmap(nyc_map) +
-  geom_sf(data = shelters_sf_fix, inherit.aes = FALSE, color = "blue", size = .5)
-#plot shelters on the map
+osmdata::set_overpass_url("https://overpass-api.de/api/interpreter")
 
-osm_queens <- opq(bbox = queens_bbox) %>%
-  add_osm_feature(key = "highway", value = c("primary", "secondary")) %>%
+osm_data <- opq(bbox = bbox) %>%
+  add_osm_feature(key = "highway", value = c("primary","secondary")) %>%
   osmdata_sf()
-#import osm data
+#import data for primary and secondary highways from open street maps
 
 shelters_sf_fix <- shelters_sf_fix %>%
   mutate(id = paste0("S", row_number()))
-# add ID column for origin-destination pairs
+#add ID column for origin-destination pairs so they have a corresponding number
 
-flow_all <- expand.grid(
-  o = shelters_sf_fix$id,
-  d = shelters_sf_fix$id,
-  stringsAsFactors = FALSE
-) %>%
-  filter(o != d) %>%              # this remove self-pairs
-  mutate(trips = 1)
-# create origin-destination pairs with a trip count of 1
+flow_all <- expand.grid(o = shelters_sf_fix$id, #create origin
+                        d = shelters_sf_fix$id, #create destination
+                        stringsAsFactors = FALSE) %>% #make sure they aren't factors
+  filter(o != d) %>% # this remove self-pairs so O is not D
+  mutate(trips = 1) %>% #add trip count of 1 for each pair
+  sample_n(50) #sample 50 random paris to avoid blowing up the computer
 
-flow_all <- sample_n(flow_all, 500)
-# sample 500 random pairs to reduce computation
+desire_lines_all <- od2line(flow_all, zones = shelters_sf_fix, zone_code = "id") #use od2line function to create desire lines (euclidean) for all pairs
 
-desire_lines_all <- od2line(flow_all, zones = shelters_sf_fix, zone_code = "id")
-# create desire lines for all pairs
+shelter_coords <- shelters_sf_fix %>%
+  st_coordinates() %>%
+  as.data.frame() %>%
+  bind_cols(id = shelters_sf_fix$id)
+#extract coordinates and bind with ID column
+
+route_single <- function(o_id, d_id) { #function to create a single route between origin and destination
+  o <- shelter_coords %>% filter(id == o_id) 
+  #filter to get origin coordinates
+  d <- shelter_coords %>% filter(id == d_id)
+  #filter to get destination coordinates
+
+  r <- try(route_osrm(from = c(o$X, o$Y),
+                      to   = c(d$X, d$Y)), silent = TRUE)
+#use try to catch errors  (e.g., no route found)
+  if (inherits(r, "try-error")) return(NULL)
+#if route found, return the route
+  return(r)
+}
+
+routes_list <- purrr::map2(flow_all$o, flow_all$d, route_single)
+#create routes for all origin-destination pairs using the route_single function
+routes_list <- routes_list[!sapply(routes_list, is.null)]
+#remove any NULL results (failed routes)
+routes_sf <- do.call(rbind, routes_list)
+#combine all routes into a single sf object
 
 
-desire_plot <- ggmap(nyc_map) +
-  geom_sf(data = osm_queens$osm_lines, inherit.aes = FALSE,
-          color = "gray60", size = 0.3, alpha = 0.6) +
-  geom_sf(data = desire_lines_all, inherit.aes = FALSE,
-          color = "red", size = 0.3, alpha = 0.5) +
-  geom_sf(data = shelters_sf_fix, inherit.aes = FALSE,
-          color = "blue", size = 1) +
-  ggtitle("Desire Lines Between All Bus Shelters in Queens")
-# plot desire lines along with roads and shelters
+routes_projection <- st_transform(routes_sf, 32618)
+desire_projection <- st_transform(desire_lines_all, 32618)
+#ensures the correct, projected shapefile for computation not mapping
 
-plot(desire_plot)
+route_length <- st_length(routes_projection)
+desire_length <- st_length(desire_projection)
+#compute lengths
+
+route_length <- as.numeric(route_length)
+desire_length <- as.numeric(desire_length)
+#convert lengths to numeric values
+
+lengths_tbl <- tibble(
+  route_m  = route_length,
+  desire_m = desire_length,
+  origin = flow_all$o,
+  destination = flow_all$d
+)
+#create tibble to compare lengths in the final map w/ IDs
+
+mean_route <- mean(route_length, na.rm = TRUE)
+mean_desire <- mean(desire_length, na.rm = TRUE)
+#calculate means for both route and desire lengths
+
+percent_change <- ((mean_route - mean_desire) / mean_desire) * 100
+#calculate percent change 
+
+mean_lengths <- data.frame(
+  type = c("Route Length", "Desire Line Length"),
+  mean_length_m = c(mean_route, mean_desire)
+)
+
+# Add percent change (only for Route, NA for Desire)
+mean_lengths <- mean_lengths %>%
+  mutate(
+    mean_length_km = mean_length_m / 1000,
+    percent_change = c(percent_change, NA)
+  )
 
 
-````
-# Figure
-![](images/desire_lines_queens.png){caption="Bus Shelters in Queens" }
-# Questions
-- Naturally, a silhouette instead of the Stadia map would be more attractive, if there's one you can suggest.
-- I am struggling to figure out how to use the Open Street Map data (osm) as a 'route' for stplanr to analyze. It's currently just a sf, so it's not a vector.
-  - The dodgr package does this, I just have not figured it out yet.
-- Looking to do something that looks like this: 
-  - ![Desire Lines vs Actual Routes](https://user-images.githubusercontent.com/1825120/142071229-81358e26-5e8d-437e-9ef8-91704a4e690f.png)
+nyc_leaflet  <- st_transform(nyc_sf, 4326)
+roads_leaflet <- st_transform(osm_data$osm_lines, 4326)
+desire_leaflet <- st_transform(desire_lines_all, 4326)
+routes_leaflet <- st_transform(routes_sf, 4326)
+
+desire_leaflet_popup <- paste0(
+  "<b>Desire Line</b><br/>",
+  "Origin: ", desire_leaflet$o, "<br/>",
+  "Destination: ", desire_leaflet$d, "<br/>",
+  "Desire Line Distance: ", round(lengths_tbl$desire_m / 1000), " km"
+)
+  
+routes_leaflet_popup <- paste0(
+  "<b>OSRM Route</b><br/>",
+  "Origin: ", desire_leaflet$o, "<br/>",
+  "Destination: ", desire_leaflet$d, "<br/>",
+  "Route Distance: ", round(lengths_tbl$route_m / 1000), " km<br/>"
+)
+
+pal_desire <- colorNumeric(
+  palette = "inferno",
+  domain  = lengths_tbl$desire_m
+)
+
+pal_routes <- colorNumeric(
+  palette = "inferno",
+  domain  = lengths_tbl$route_m
+)
+
+selected_ids <- unique(c(flow_all$o, flow_all$d))
+#get unique IDs of sampled shelters
+
+selected_shelters <- shelters_sf_fix %>% 
+  filter(id %in% selected_ids)
+#filter shelters to only those that were sampled
+
+leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  
+  addPolygons(data = nyc_leaflet,
+              color = "black", weight = 3,
+              fillOpacity = 0.1,
+              group = "NYC Boundary") %>%
+  
+  # Desire lines with gradient colors
+  addPolylines(
+    data = desire_leaflet,
+    color = pal_desire(lengths_tbl$desire_m),
+    weight = 3,
+    opacity = 0.7,
+    popup = desire_leaflet_popup,
+    group = "Desire Lines"
+  ) %>%
+  
+  # OSRM routes with gradient colors
+  addPolylines(
+    data = routes_leaflet,
+    color = pal_routes(lengths_tbl$route_m),
+    weight = 3,
+    opacity = 0.8,
+    popup = routes_leaflet_popup,
+    group = "OSRM Routes"
+  ) %>%
+  
+  # Add color legends so users know what the gradient means
+  addLegend(
+    pal = pal_desire,
+    values = lengths_tbl$desire_m,
+    title = "Desire Line Distance (m)",
+    position = "bottomright",
+    group = "Desire Lines"
+  ) %>%
+  
+  addLegend(
+    pal = pal_routes,
+    values = lengths_tbl$route_m,
+    title = "OSRM Route Distance (m)",
+    position = "bottomleft",
+    group = "OSRM Routes"
+  ) %>%
+  
+  # Add shelters (same as before)
+  addCircleMarkers(data = shelters_sf_fix,
+                   color = "blue",
+                   radius = 1,
+                   popup = ~id,
+                   group = "Bus Shelters") %>%
+  
+  addCircleMarkers(
+    data = selected_shelters,
+    color = "purple",
+    radius = 6,
+    fillOpacity = 0.9,
+    group = "Sampled Shelters"
+  ) %>%
+  
+  addLayersControl(
+    overlayGroups = c("NYC Boundary", "Sampled Shelters",
+                      "Desire Lines", "OSRM Routes",
+                      "Bus Shelters"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+
+
+```
