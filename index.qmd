@@ -34,7 +34,7 @@ To adequately compare desire lines, bus routes, and the most efficient routes wi
   - **Methods:** This can be brought into R as a CSV file. Each bus stop shelter has longitude and latitude coordinates that align with ggmap and OpenStreetMap projections.  
   - **Source:** [NYC Bus Stop Shelters](https://data.cityofnewyork.us/Transportation/Bus-Stop-Shelters/qafz-7myz)
 
-# Code:
+# Workflow:
 ````{r, eval=FALSE}
 install.packages("ggmap")
 install.packages("stplanr")
@@ -47,6 +47,8 @@ library(osmdata)
 library(sf)
 library(tidyverse)
 library(dodgr)
+
+#this workflow includes map tests to ensure the data is working
 
 queens_bbox <- c(left = -73.96, bottom = 40.54, right = -73.70, top = 40.81)
 
@@ -73,11 +75,6 @@ osm_queens <- opq(bbox = queens_bbox) %>%
   add_osm_feature(key = "highway", value = c("primary", "secondary")) %>%
   osmdata_sf()
 #import osm data
-
-
-ggmap(nyc_map) +
-  geom_sf(data = osm_queens$osm_lines, inherit.aes = FALSE, color = "red", size = 0.5, alpha = 0.6) +
-  geom_sf(data = shelters_sf_fix, inherit.aes = FALSE, color = "blue", size = 1)
 
 shelters_sf_fix <- shelters_sf_fix %>%
   mutate(id = paste0("S", row_number()))
