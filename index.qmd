@@ -44,15 +44,14 @@ library(leaflet)
 library(purrr)
 
 bbox <- c(left = -73.96, bottom = 40.54, right = -73.70, top = 40.81)
-#create bounding box for queens
+#create bounding box for NYC
 
-nyc_map <- "data/"
+nyc_map <- "data/"#
 
 #nyc basemap, downloaded from nyc open data. source: https://search.r-project.org/CRAN/refmans/ptools/html/nyc_bor.html
 
 nyc_sf <- st_read(nyc_map)
 #bring in nyc_map as a sf
-
 
 shelters_sf <- read_csv("data/Bus_Stop_Shelter_20251020.csv")
 #NOTE: REPLACE WITH DATA WHEN USING QUARTO!
@@ -62,6 +61,7 @@ shelters_sf_fix <- st_as_sf(shelters_sf, coords = c("Longitude","Latitude"), crs
 #convert to sf object with the correct coordinate reference system
 
 osmdata::set_overpass_url("https://overpass-api.de/api/interpreter")
+#set overpass url for open street maps
 
 osm_data <- opq(bbox = bbox) %>%
   add_osm_feature(key = "highway", value = c("primary","secondary")) %>%
