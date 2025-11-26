@@ -13,6 +13,7 @@ format:
 editor: visual
 ---
 
+
 # Introduction
 
 This project will use stplanr transport modeling package to design an optimal transport route for bus or cycle routes in New York City. Stplanr is a transport planning visualization R package that can be used to plan transit networks, in addition to transit planning elements such as identifying transit catchment areas, origin/destination data and ride frequency visualizations, among others. In their white paper, the devlopers of stplanr call for an accountable, transparent and democratized transit planning system that doesn’t rely on proprietary and often vastly different data sources and data processing softwares. Although the package can visualize a whole host of data, this project will focus on comparing direct desire lines or “Euclidean” routes (as the crow flies), existing bus networks and stplanr’s optimized routes. To wit: this can map the efficiency of the bus routes compared to the most direct route possible if there were no built environment factors in the way.
