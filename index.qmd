@@ -43,29 +43,29 @@ To adequately compare desire lines, bus routes, and the most efficient routes wi
 
 # Terms:
 
--   **Desire Lines:** Straight lines connecting origin and destination points, representing the most direct path between them.
--   **Euclidean:** Direct points between shelters. "As the crow flies".
+-   **Desire Lines & "Euclidean":** Straight lines connecting origin and destination points, representing the most direct path between them.
 -   **OSRM:** Open Street Routing Machine, a routing engine that uses Open Street Map data to calculate routes, shortest routes, travel times, and can be used to make travel time maps, distance routing for car, bike and walking.
 
 # Interactive Map:
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
 #install libraries
-library(ggmap)
-library(dplyr)
-library(stplanr)
-library(osmdata)
-library(sf)
-library(tidyverse)
-library(leaflet)
-library(purrr)
-library(kableExtra)
-library(scales)
+library(ggmap) #vestigial
+library(dplyr) #data manipulation
+library(stplanr) #od2line calculation, origin-destination programming
+library(osmdata) #open street maps data
+library(sf) #spatial data
+library(tidyverse) #data manipulation
+library(leaflet) #interactive map
+library(purrr) #for map2 function
+library(kableExtra) #for attractive table formatting
+library(scales) #for comma function
 
 ```
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
 #SHAPEFILES AND MAP
+
 bbox <- c(left = -73.96, bottom = 40.54, right = -73.70, top = 40.81)
 #create bounding box for NYC
 
@@ -84,18 +84,19 @@ shelters_sf_fix <- st_as_sf(shelters_sf, coords = c("Longitude","Latitude"), crs
 #convert to sf object with the correct coordinate reference system
 
 osmdata::set_overpass_url("https://overpass-api.de/api/interpreter")
-#set overpass url for open street maps
+#set overpass url for open street maps, finds specific data package, the below query will use this
 
 osm_data <- opq(bbox = bbox) %>%
   add_osm_feature(key = "highway", value = c("primary","secondary")) %>%
   osmdata_sf()
 #import data for primary and secondary highways from open street maps
+#opq is overpass query, which is basically where you want to look
 
 
 ```
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
-# STPLANR
+# STPLANR FUNCTIONS
 
 shelters_sf_fix <- shelters_sf_fix %>%
   mutate(id = paste0("S", row_number()))
@@ -140,7 +141,7 @@ routes_sf <- do.call(rbind, routes_list)
 ```
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
-#BELOW: create a comparison between route lengths and desire line lengths & calculate means and percent change
+#ROUTE & DESIRE LENGTH CALCULATION, MEAN & PCT CHANGE
 
 routes_projection <- st_transform(routes_sf, 32618)
 desire_projection <- st_transform(desire_lines_all, 32618)
@@ -201,6 +202,7 @@ mean_lengths_print <- mean_lengths %>%
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
 #LEAFLET PREP
+
 nyc_leaflet  <- st_transform(nyc_sf, 4326)
 roads_leaflet <- st_transform(osm_data$osm_lines, 4326)
 desire_leaflet <- st_transform(desire_lines_all, 4326)
@@ -245,6 +247,7 @@ selected_shelters <- shelters_sf_fix %>%
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
 #LEAFLET MAP
+
 leaflet() %>%
   addProviderTiles("CartoDB.Positron") %>%
   
@@ -347,6 +350,14 @@ The results indicate that the optimized OSRM routes are significantly longer tha
 
 Future research could expand the sample size to include more origin-destination pairs, or even all bus stops. Incorporating real-world travel time data, traffic patterns, and transit schedules could provide a more comprehensive understanding of route efficiency. Further analysis could also explore the impact of different modes of transportation, such as cycling or walking, on route optimization and efficiency.
 
-# Additional Sources:
+# References
 
-https://www.mta.info/agency/new-york-city-transit/subway-bus-facts-2019 https://docs.ropensci.org/stplanr/
+- A. J. Smit. *Mapping with Google in R*. [Source](https://ajsmit.github.io/Intro_R_Official/mapping-google.html).
+- CRAN. *stplanr Paper and Vignettes*. [Source](https://cran.r-project.org/web/packages/stplanr/vignettes/stplanr-paper.html). 
+- NYC Open Data. *Bus Stop Shelters Dataset*. [Source](https://data.cityofnewyork.us/Transportation/Bus-Stop-Shelters/qafz-7myz). 
+- Robin Lovelace. *stplanr: R Package Documentation*. [Source](https://docs.ropensci.org/stplanr/).
+- openstreetmap.de. *OpenStreetMap Routing Service*. [Source](https://routing.openstreetmap.de/).
+- RStudio. *Leaflet for R*. [Source](https://rstudio.github.io/leaflet/).
+- MTA. *New York City Transit Subway and Bus Facts 2019*. [Source](https://www.mta.info/agency/new-york-city-transit/subway-bus-facts-2019). 
+- NYC.gov. *NYC Borough Boundaries Dataset*. [Source](https://www.nyc.gov/content/planning/pages/resources/datasets/borough-boundaries). 
+
