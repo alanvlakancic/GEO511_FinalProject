@@ -22,17 +22,17 @@ This project uses stplanr transport modeling package to design an optimal transp
 To adequately compare desire lines, bus routes, and the most efficient routes with the current street network, this project will require at minimum three data sources. Each of these will be sourced separately and overlaid onto each other:
 
 -   **Data Source:** leaflet data for basemap
-    -   **Methods:** This can be sourced directly into R by installing the leaflet package. It provides an interactive background map that can be used to overlay other spatial data, and the options can be toggled on and off for ease of use.
+    -   **Methods:** This can be sourced directly into R by installing the leaflet package. It is an interactive map so the user can navigate it.\
     -   **Source:** [Leaflet for R](https://rstudio.github.io/leaflet/)
 -   **Data Source:** OpenStreetMap (OSMR) data for transit data, either bus or cycle routes, this is used as the route vector data.
-    -   **Methods:** This can be sourced directly into R by installing the package. You may need to rationalize different projection systems to make sure they overlay correctly.\
+    -   **Methods:** This can be sourced directly into R, with an overpass query.\
     -   **Source:** [Mapping with OpenStreetMap in R](https://ajsmit.github.io/Intro_R_Official/mapping-google.html)
 -   **Data Source:** NYC Open Data for Bus Shelter locations\
     Despite significant searching, there is no comprehensive bus stop dataset, so the project will focus on bus stop shelters, which are mapped via NYC Open Data. I used Bus Shelters as there would be thousands upon thousands of bus stops in NYC, and this would be too computationally intensive to process.\
-    -   **Methods:** This can be brought into R as a CSV file. Each bus stop shelter has longitude and latitude coordinates that align with leaflet and OpenStreetMap projections.\
+    -   **Methods:** This is brought into R as a CSV file. Each bus stop shelter has longitude and latitude coordinates that align with leaflet and OpenStreetMap projections.\
     -   **Source:** [NYC Bus Stop Shelters, NYC Transit](https://data.cityofnewyork.us/Transportation/Bus-Stop-Shelters/qafz-7myz) analysis
 -   **Data Source:** NYC Open Data for NYC Borough Boundaries
-    -   **Methods:** This can be brought into R as a shapefile. This will provide the basemap boundary for NYC to ensure all data is within the city limits.
+    -   **Methods:** This is brought into R as a shapefile. This will provide the basemap boundary for NYC to ensure all data is within the city limits, represented on the leaflet map.
     -   **Source:** [NYC Borough Boundaries, Department of City Planning](https://www.nyc.gov/content/planning/pages/resources/datasets/borough-boundaries)
 
 # Data Preparation
