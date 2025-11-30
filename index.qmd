@@ -11,37 +11,56 @@ format:
     fig-width: 10
     fig-height: 8
 editor: visual
+
 ---
 
 # Introduction
 
-This project will use stplanr transport modeling package to design an optimal transport route for bus or cycle routes in New York City. Stplanr is a transport planning visualization R package that can be used to plan transit networks, in addition to transit planning elements such as identifying transit catchment areas, origin/destination data and ride frequency visualizations, among others. In their white paper, the devlopers of stplanr call for an accountable, transparent and democratized transit planning system that doesn’t rely on proprietary and often vastly different data sources and data processing softwares. Although the package can visualize a whole host of data, this project will focus on comparing direct desire lines or “Euclidean” routes (as the crow flies), existing bus networks and stplanr’s optimized routes. To wit: this can map the efficiency of the bus routes compared to the most direct route possible if there were no built environment factors in the way.
+This project uses stplanr transport modeling package to design an optimal transport route for bus or cycle routes in New York City. Stplanr is a transport planning visualization R package that can be used to plan transit networks, in addition to transit planning elements such as identifying transit catchment areas, origin/destination data and ride frequency visualizations, among others. In their white paper, the devlopers of stplanr call for an accountable, transparent and democratized transit planning system that doesn’t rely on proprietary and often vastly different data sources and data processing softwares. Although the package can visualize a whole host of data, this project will focus on comparing direct desire lines or “Euclidean” routes (as the crow flies), existing bus networks and stplanr’s optimized routes. To wit: this can map the efficiency of the bus routes compared to the most direct route possible if there were no built environment factors in the way.
 
 # Methods
 
 To adequately compare desire lines, bus routes, and the most efficient routes with the current street network, this project will require at minimum three data sources. Each of these will be sourced separately and overlaid onto each other:
 
--   **Data Source:** ggmap data for basemap
-    -   **Methods:** This can be sourced directly into R by installing the package. ggmap can bring in data from Stadiamaps. This will require a Google API key to be registered.\
-    -   **Source:** [Getting Started with ggmap & Stadiamaps](https://docs.stadiamaps.com/tutorials/getting-started-in-r-with-ggmap/)
--   **Data Source:** OpenStreetMap data for transit data, either bus or cycle routes
+-   **Data Source:** leaflet data for basemap
+    -   **Methods:** This can be sourced directly into R by installing the leaflet package. It provides an interactive background map that can be used to overlay other spatial data, and the options can be toggled on and off for ease of use.
+    -   **Source:** [Leaflet for R](https://rstudio.github.io/leaflet/)
+-   **Data Source:** OpenStreetMap (OSMR) data for transit data, either bus or cycle routes, this is used as the route vector data.
     -   **Methods:** This can be sourced directly into R by installing the package. You may need to rationalize different projection systems to make sure they overlay correctly.\
     -   **Source:** [Mapping with OpenStreetMap in R](https://ajsmit.github.io/Intro_R_Official/mapping-google.html)
 -   **Data Source:** NYC Open Data for Bus Shelter locations\
-    Despite significant searching, there is no comprehensive bus stop dataset, so the project will focus on bus stop shelters, which are mapped via NYC Open Data.
-    -   **Methods:** This can be brought into R as a CSV file. Each bus stop shelter has longitude and latitude coordinates that align with ggmap and OpenStreetMap projections.\
-    -   **Source:** [NYC Bus Stop Shelters](https://data.cityofnewyork.us/Transportation/Bus-Stop-Shelters/qafz-7myz)
+    Despite significant searching, there is no comprehensive bus stop dataset, so the project will focus on bus stop shelters, which are mapped via NYC Open Data. I used Bus Shelters as there would be thousands upon thousands of bus stops in NYC, and this would be too computationally intensive to process.\
+    -   **Methods:** This can be brought into R as a CSV file. Each bus stop shelter has longitude and latitude coordinates that align with leaflet and OpenStreetMap projections.\
+    -   **Source:** [NYC Bus Stop Shelters, NYC Transit](https://data.cityofnewyork.us/Transportation/Bus-Stop-Shelters/qafz-7myz) analysis
+-   **Data Source:** NYC Open Data for NYC Borough Boundaries
+    -   **Methods:** This can be brought into R as a shapefile. This will provide the basemap boundary for NYC to ensure all data is within the city limits.
+    -   **Source:** [NYC Borough Boundaries, Department of City Planning](https://www.nyc.gov/content/planning/pages/resources/datasets/borough-boundaries)
 
-# Workflow:
+# Data Preparation
+
+-   Load the necessary R packages for spatial data manipulation and visualization (e.g., ggmap, dplyr, stplanr, osmdata, sf, leaflet).
+-   Import the NYC basemap shapefile and bus shelter CSV data into R.
+-   Convert the bus shelter data into an sf object with appropriate coordinate reference system (CRS).
+
+# Terms:
+
+-   **Desire Lines:** Straight lines connecting origin and destination points, representing the most direct path between them.
+-   **Euclidean:** Direct points between shelters. "As the crow flies".
+-   **OSRM:** Open Street Routing Machine, a routing engine that uses Open Street Map data to calculate routes, shortest routes, travel times, and can be used to make travel time maps, distance routing for car, bike and walking.
+
+# Interactive Map:
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
 library(ggmap)
+library(dplyr)
 library(stplanr)
 library(osmdata)
 library(sf)
 library(tidyverse)
 library(leaflet)
 library(purrr)
+library(kableExtra)
+library(scales)
 
 bbox <- c(left = -73.96, bottom = 40.54, right = -73.70, top = 40.81)
 #create bounding box for NYC
@@ -108,6 +127,7 @@ routes_list <- routes_list[!sapply(routes_list, is.null)]
 routes_sf <- do.call(rbind, routes_list)
 #combine all routes into a single sf object
 
+#BELOW: create a comparison between route lengths and desire line lengths & calculate means and percent change
 
 routes_projection <- st_transform(routes_sf, 32618)
 desire_projection <- st_transform(desire_lines_all, 32618)
@@ -129,6 +149,14 @@ lengths_tbl <- tibble(
 )
 #create tibble to compare lengths in the final map w/ IDs
 
+lengths_tbl_print <- tibble(
+  route_m  = comma(round(route_length)),
+  desire_m = comma(round(desire_length)),
+  origin = flow_all$o,
+  destination = flow_all$d
+)
+#tidy data for later printing in a kable
+
 mean_route <- mean(route_length, na.rm = TRUE)
 mean_desire <- mean(desire_length, na.rm = TRUE)
 #calculate means for both route and desire lengths
@@ -138,21 +166,29 @@ percent_change <- ((mean_route - mean_desire) / mean_desire) * 100
 
 mean_lengths <- data.frame(
   type = c("Route Length", "Desire Line Length"),
-  mean_length_m = c(mean_route, mean_desire)
-)
+  mean_length_m = c(round(mean_route), round(mean_desire)))
 
-# Add percent change (only for Route, NA for Desire)
+#put these into a data frame, rounded to whole numbers
+
+
 mean_lengths <- mean_lengths %>%
   mutate(
     mean_length_km = mean_length_m / 1000,
     percent_change = c(percent_change, NA)
   )
+#add km conversion and percent change to the data frame, i converted to KM for ease of computation (ie: dividing by 1,000)
 
+mean_lengths_print <- mean_lengths %>%
+  mutate(
+    mean_length_km = comma(round(mean_length_m / 1000)),
+    percent_change = comma(round(percent_change))
+  )
 
 nyc_leaflet  <- st_transform(nyc_sf, 4326)
 roads_leaflet <- st_transform(osm_data$osm_lines, 4326)
 desire_leaflet <- st_transform(desire_lines_all, 4326)
 routes_leaflet <- st_transform(routes_sf, 4326)
+#transform all data to WGS84 for leaflet mapping
 
 desire_leaflet_popup <- paste0(
   "<b>Desire Line</b><br/>",
@@ -160,6 +196,7 @@ desire_leaflet_popup <- paste0(
   "Destination: ", desire_leaflet$d, "<br/>",
   "Desire Line Distance: ", round(lengths_tbl$desire_m / 1000), " km"
 )
+#create popup info for desire lines for interactive map
   
 routes_leaflet_popup <- paste0(
   "<b>OSRM Route</b><br/>",
@@ -167,16 +204,19 @@ routes_leaflet_popup <- paste0(
   "Destination: ", desire_leaflet$d, "<br/>",
   "Route Distance: ", round(lengths_tbl$route_m / 1000), " km<br/>"
 )
+#create popup info for routes for interactive map
 
 pal_desire <- colorNumeric(
-  palette = "inferno",
+  palette = "viridis",
   domain  = lengths_tbl$desire_m
 )
+#create color palette for desire lines based on distance
 
 pal_routes <- colorNumeric(
   palette = "inferno",
   domain  = lengths_tbl$route_m
 )
+#create color palette for routes based on distance
 
 selected_ids <- unique(c(flow_all$o, flow_all$d))
 #get unique IDs of sampled shelters
@@ -192,8 +232,8 @@ leaflet() %>%
               color = "black", weight = 3,
               fillOpacity = 0.1,
               group = "NYC Boundary") %>%
+  # Add OSM roads w/ positron background
   
-  # Desire lines with gradient colors
   addPolylines(
     data = desire_leaflet,
     color = pal_desire(lengths_tbl$desire_m),
@@ -203,7 +243,6 @@ leaflet() %>%
     group = "Desire Lines"
   ) %>%
   
-  # OSRM routes with gradient colors
   addPolylines(
     data = routes_leaflet,
     color = pal_routes(lengths_tbl$route_m),
@@ -213,7 +252,6 @@ leaflet() %>%
     group = "OSRM Routes"
   ) %>%
   
-  # Add color legends so users know what the gradient means
   addLegend(
     pal = pal_desire,
     values = lengths_tbl$desire_m,
@@ -221,7 +259,7 @@ leaflet() %>%
     position = "bottomright",
     group = "Desire Lines"
   ) %>%
-  
+  #add a legend for desire lines
   addLegend(
     pal = pal_routes,
     values = lengths_tbl$route_m,
@@ -229,14 +267,14 @@ leaflet() %>%
     position = "bottomleft",
     group = "OSRM Routes"
   ) %>%
-  
-  # Add shelters (same as before)
-  addCircleMarkers(data = shelters_sf_fix,
+  #add a legend for osrm routes
+
+    addCircleMarkers(data = shelters_sf_fix,
                    color = "blue",
                    radius = 1,
                    popup = ~id,
                    group = "Bus Shelters") %>%
-  
+  #add all bus shelters
   addCircleMarkers(
     data = selected_shelters,
     color = "purple",
@@ -244,7 +282,7 @@ leaflet() %>%
     fillOpacity = 0.9,
     group = "Sampled Shelters"
   ) %>%
-  
+  #add sampled bus shelters with purple markers
   addLayersControl(
     overlayGroups = c("NYC Boundary", "Sampled Shelters",
                       "Desire Lines", "OSRM Routes",
@@ -254,3 +292,41 @@ leaflet() %>%
 
 
 ```
+# Tables: 
+```{r, eval=TRUE, warnings=FALSE, message=FALSE}
+mean_lengths_print %>%
+  kable(col.names = c("Type", "Mean Length (m)", "Mean Length (km)", "Percent Change (%)"),
+        caption = "Mean Lengths of OSRM Routes vs Desire Lines") %>%
+  kable_styling(full_width = FALSE, position = "left")
+```
+
+```{r, eval=TRUE, warnings=FALSE, message=FALSE}
+lengths_tbl_print %>%
+  kable(col.names = c("Route Length (m)", "Desire Line Length (m)", "Origin ID", "Destination ID"),
+        caption = "Comparison of Route Lengths and Desire Line Lengths for Sampled Origin-Destination Pairs") %>%
+  kable_styling(full_width = FALSE, position = "left")
+```
+
+# Results
+
+The mean route length for the optimized routes for this particular sample run is **`r round(mean_route / 1000, 2)`** km, while the mean Euclidean desire line length is **`r round(mean_desire / 1000, 2)`** km. This represents a percent change of **`r round(percent_change, 2)`%** longer for the optimized routes compared to the direct desire lines. The interactive map above visualizes these routes, with desire lines colored based on their lengths and Open Street Routing Machine (OSRM) routes similarly colored with a different theme.
+
+# Discussion
+
+The results indicate that the optimized OSRM routes are significantly longer than the direct desire lines, which is generally expected given the constraints of the built environment and road network. The percent change of **`r round(percent_change, 2)`%** suggests that while the desire lines represent the most direct path between two points, real-world travel must navigate around obstacles, follow roadways, and adhere to traffic regulations etc.
+
+# Limitations
+
+-   This does not represent all bus stops in NYC, just shelters. Although the exact number of bus stops is difficult to find, the MTA states that there are 327 bus routes in the five boroughs and countless stops in between. To make the data manageable both in computation and visualization, this study only selects 50 at random. This limits the amount of data points and does not fully capture the bus network.
+-   The OSRM routing service may not always find a route between two points, especially if they are very close together or in areas with limited road connectivity. The code removes these unroutable routes, and they are not shown in the data.
+-   The analysis does not account for real-world factors such as traffic, hazards, closures, road conditions, bus "bunching" or transit schedules, which can significantly impact actual travel times and route efficiency.The analysis assumes that the shortest path is the most efficient, which may not always be the case in real-world scenarios.
+-   The sample size of 50 origin-destination pairs is relatively small and is not be representative of the entire bus network in NYC.
+-   Only "Primary" and "Secondary" roads are sampled here, as the computation for the smaller roads (tertiary etc.) was too processing heavy. This eliminates a large selection of routes.
+
+# Future:
+
+Future research could expand the sample size to include more origin-destination pairs, or even all bus stops. Incorporating real-world travel time data, traffic patterns, and transit schedules could provide a more comprehensive understanding of route efficiency. Further analysis could also explore the impact of different modes of transportation, such as cycling or walking, on route optimization and efficiency.
+
+# Additional Sources:
+
+https://www.mta.info/agency/new-york-city-transit/subway-bus-facts-2019 https://docs.ropensci.org/stplanr/
