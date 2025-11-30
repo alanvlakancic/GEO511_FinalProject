@@ -11,7 +11,6 @@ format:
     fig-width: 10
     fig-height: 8
 editor: visual
-
 ---
 
 # Introduction
@@ -51,6 +50,7 @@ To adequately compare desire lines, bus routes, and the most efficient routes wi
 # Interactive Map:
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
+#install libraries
 library(ggmap)
 library(dplyr)
 library(stplanr)
@@ -62,6 +62,10 @@ library(purrr)
 library(kableExtra)
 library(scales)
 
+```
+
+```{r, eval=TRUE, warnings=FALSE, message=FALSE}
+#SHAPEFILES AND MAP
 bbox <- c(left = -73.96, bottom = 40.54, right = -73.70, top = 40.81)
 #create bounding box for NYC
 
@@ -69,7 +73,7 @@ nyc_map <- "data/"#
 
 #nyc basemap, downloaded from nyc open data. source: https://search.r-project.org/CRAN/refmans/ptools/html/nyc_bor.html
 
-nyc_sf <- st_read(nyc_map)
+nyc_sf <- st_read(nyc_map, quiet =TRUE)
 #bring in nyc_map as a sf
 
 shelters_sf <- read_csv("data/Bus_Stop_Shelter_20251020.csv")
@@ -86,6 +90,12 @@ osm_data <- opq(bbox = bbox) %>%
   add_osm_feature(key = "highway", value = c("primary","secondary")) %>%
   osmdata_sf()
 #import data for primary and secondary highways from open street maps
+
+
+```
+
+```{r, eval=TRUE, warnings=FALSE, message=FALSE}
+# STPLANR
 
 shelters_sf_fix <- shelters_sf_fix %>%
   mutate(id = paste0("S", row_number()))
@@ -127,6 +137,9 @@ routes_list <- routes_list[!sapply(routes_list, is.null)]
 routes_sf <- do.call(rbind, routes_list)
 #combine all routes into a single sf object
 
+```
+
+```{r, eval=TRUE, warnings=FALSE, message=FALSE}
 #BELOW: create a comparison between route lengths and desire line lengths & calculate means and percent change
 
 routes_projection <- st_transform(routes_sf, 32618)
@@ -183,7 +196,11 @@ mean_lengths_print <- mean_lengths %>%
     mean_length_km = comma(round(mean_length_m / 1000)),
     percent_change = comma(round(percent_change))
   )
+#tidy data for later printing in a kable
+```
 
+```{r, eval=TRUE, warnings=FALSE, message=FALSE}
+#LEAFLET PREP
 nyc_leaflet  <- st_transform(nyc_sf, 4326)
 roads_leaflet <- st_transform(osm_data$osm_lines, 4326)
 desire_leaflet <- st_transform(desire_lines_all, 4326)
@@ -224,7 +241,10 @@ selected_ids <- unique(c(flow_all$o, flow_all$d))
 selected_shelters <- shelters_sf_fix %>% 
   filter(id %in% selected_ids)
 #filter shelters to only those that were sampled
+```
 
+```{r, eval=TRUE, warnings=FALSE, message=FALSE}
+#LEAFLET MAP
 leaflet() %>%
   addProviderTiles("CartoDB.Positron") %>%
   
@@ -289,10 +309,10 @@ leaflet() %>%
                       "Bus Shelters"),
     options = layersControlOptions(collapsed = FALSE)
   )
-
-
 ```
-# Tables: 
+
+# Tables:
+
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
 mean_lengths_print %>%
   kable(col.names = c("Type", "Mean Length (m)", "Mean Length (km)", "Percent Change (%)"),
