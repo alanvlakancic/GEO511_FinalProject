@@ -1,7 +1,7 @@
 ---
 title: "Euclidean Bus Mobility and Route Optimization, A Comparison"
 author: "Alan Vlakancic"
-subtitle: "Routes in Queens, New York City, NY"
+subtitle: "Routes in New York City, NY"
 date: today
 date-format: long
 format:
@@ -13,11 +13,11 @@ format:
 editor: visual
 ---
 
-# Introduction
+# Introduction:
 
 This project uses stplanr transport modeling package to design an optimal transport route for bus or cycle routes in New York City. Stplanr is a transport planning visualization R package that can be used to plan transit networks, in addition to transit planning elements such as identifying transit catchment areas, origin/destination data and ride frequency visualizations, among others. In their white paper, the devlopers of stplanr call for an accountable, transparent and democratized transit planning system that doesn’t rely on proprietary and often vastly different data sources and data processing softwares. Although the package can visualize a whole host of data, this project will focus on comparing direct desire lines or “Euclidean” routes (as the crow flies), existing bus networks and stplanr’s optimized routes. To wit: this can map the efficiency of the bus routes compared to the most direct route possible if there were no built environment factors in the way.
 
-# Methods
+# Methods:
 
 To adequately compare desire lines, bus routes, and the most efficient routes with the current street network, this project will require at minimum three data sources. Each of these will be sourced separately and overlaid onto each other:
 
@@ -35,7 +35,7 @@ To adequately compare desire lines, bus routes, and the most efficient routes wi
     -   **Methods:** This is brought into R as a shapefile. This will provide the basemap boundary for NYC to ensure all data is within the city limits, represented on the leaflet map.
     -   **Source:** [NYC Borough Boundaries, Department of City Planning](https://www.nyc.gov/content/planning/pages/resources/datasets/borough-boundaries)
 
-# Data Preparation
+# Data Preparation:
 
 -   Load the necessary R packages for spatial data manipulation and visualization (e.g., ggmap, dplyr, stplanr, osmdata, sf, leaflet).
 -   Import the NYC basemap shapefile and bus shelter CSV data into R.
@@ -49,8 +49,9 @@ To adequately compare desire lines, bus routes, and the most efficient routes wi
 # Interactive Map:
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
+#install.packages("plotly")
 #install libraries
-library(ggmap) #vestigial
+library(ggplot2) #for plotting graphs
 library(dplyr) #data manipulation
 library(stplanr) #od2line calculation, origin-destination programming
 library(osmdata) #open street maps data
@@ -60,6 +61,7 @@ library(leaflet) #interactive map
 library(purrr) #for map2 function
 library(kableExtra) #for attractive table formatting
 library(scales) #for comma function
+library(plotly) #for interactive plots
 
 ```
 
@@ -164,12 +166,24 @@ lengths_tbl <- tibble(
 #create tibble to compare lengths in the final map w/ IDs
 
 lengths_tbl_print <- tibble(
-  route_m  = comma(round(route_length)),
-  desire_m = comma(round(desire_length)),
+  route_km = route_length / 1000,
+  desire_km = desire_length / 1000,
   origin = flow_all$o,
   destination = flow_all$d
-)
+) %>%
+  mutate(
+    ID = row_number(),
+    difference = round(route_km - desire_km)
+  ) %>%
+  mutate(
+    route_km = comma(round(route_km)),
+    desire_km = comma(round(desire_km))
+  ) %>%
+  arrange(desc(difference))
 #tidy data for later printing in a kable
+
+lengths_tbl_print <- lengths_tbl_print %>%
+  select(ID, origin, destination, route_km, desire_km, difference)  
 
 mean_route <- mean(route_length, na.rm = TRUE)
 mean_desire <- mean(desire_length, na.rm = TRUE)
@@ -218,7 +232,7 @@ desire_leaflet_popup <- paste0(
 #create popup info for desire lines for interactive map
   
 routes_leaflet_popup <- paste0(
-  "<b>OSRM Route</b><br/>",
+  "<b>  Route</b><br/>",
   "Origin: ", desire_leaflet$o, "<br/>",
   "Destination: ", desire_leaflet$d, "<br/>",
   "Route Distance: ", round(lengths_tbl$route_m / 1000), " km<br/>"
@@ -255,7 +269,7 @@ leaflet() %>%
               color = "black", weight = 3,
               fillOpacity = 0.1,
               group = "NYC Boundary") %>%
-  # Add OSM roads w/ positron background
+  # add background w/ cartodb tiles
   
   addPolylines(
     data = desire_leaflet,
@@ -272,7 +286,7 @@ leaflet() %>%
     weight = 3,
     opacity = 0.8,
     popup = routes_leaflet_popup,
-    group = "OSRM Routes"
+    group = "Routes"
   ) %>%
   
   addLegend(
@@ -286,11 +300,11 @@ leaflet() %>%
   addLegend(
     pal = pal_routes,
     values = lengths_tbl$route_m,
-    title = "OSRM Route Distance (m)",
+    title = "Route Distance (m)",
     position = "bottomleft",
-    group = "OSRM Routes"
+    group = "Routes"
   ) %>%
-  #add a legend for osrm routes
+  #add a legend for routes
 
     addCircleMarkers(data = shelters_sf_fix,
                    color = "blue",
@@ -298,6 +312,7 @@ leaflet() %>%
                    popup = ~id,
                    group = "Bus Shelters") %>%
   #add all bus shelters
+  
   addCircleMarkers(
     data = selected_shelters,
     color = "purple",
@@ -308,7 +323,7 @@ leaflet() %>%
   #add sampled bus shelters with purple markers
   addLayersControl(
     overlayGroups = c("NYC Boundary", "Sampled Shelters",
-                      "Desire Lines", "OSRM Routes",
+                      "Desire Lines", "Routes",
                       "Bus Shelters"),
     options = layersControlOptions(collapsed = FALSE)
   )
@@ -317,28 +332,47 @@ leaflet() %>%
 # Tables:
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
+# Mean Lengths Table
 mean_lengths_print %>%
   kable(col.names = c("Type", "Mean Length (m)", "Mean Length (km)", "Percent Change (%)"),
-        caption = "Mean Lengths of OSRM Routes vs Desire Lines") %>%
+        caption = "Mean Lengths of Routes vs Desire Lines") %>%
   kable_styling(full_width = FALSE, position = "left")
 ```
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
-lengths_tbl_print %>%
-  kable(col.names = c("Route Length (m)", "Desire Line Length (m)", "Origin ID", "Destination ID"),
-        caption = "Comparison of Route Lengths and Desire Line Lengths for Sampled Origin-Destination Pairs") %>%
-  kable_styling(full_width = FALSE, position = "left")
+# Lengths Comparison Table
+lengths_tbl_print %>% 
+  select(-ID) %>%
+kable(col.names = c("Origin", "Destination", "Route Length (km)", "Desire Line Length (km)", "Difference (km)"),
+        caption = "Comparison of Route Lengths and Desire Line Lengths, By Difference") %>%
+  kable_styling(full_width = FALSE, position = "center")
 ```
+# Figures: 
 
-# Results
+```{r, eval=TRUE, warnings=FALSE, message=FALSE}
+gg1 <- ggplot(lengths_tbl_print, aes(x = ID, y = difference, text = paste("Origin: ", origin, "<br>Destination: ", destination))) +
+  geom_bar(stat = "identity") +
+  scale_fill_viridis_b()+
+  labs(
+    title = "Difference Between Route Length and Desire Line Length",
+    x = "Route ID",
+    y = "Difference (km)"
+  ) +
+  theme_dark()
+
+gg1_plotly <- ggplotly(gg1)
+
+gg1_plotly
+```
+# Results:
 
 The mean route length for the optimized routes for this particular sample run is **`r round(mean_route / 1000, 2)`** km, while the mean Euclidean desire line length is **`r round(mean_desire / 1000, 2)`** km. This represents a percent change of **`r round(percent_change, 2)`%** longer for the optimized routes compared to the direct desire lines. The interactive map above visualizes these routes, with desire lines colored based on their lengths and Open Street Routing Machine (OSRM) routes similarly colored with a different theme.
 
-# Discussion
+# Discussion:
 
 The results indicate that the optimized OSRM routes are significantly longer than the direct desire lines, which is generally expected given the constraints of the built environment and road network. The percent change of **`r round(percent_change, 2)`%** suggests that while the desire lines represent the most direct path between two points, real-world travel must navigate around obstacles, follow roadways, and adhere to traffic regulations etc.
 
-# Limitations
+# Limitations:
 
 -   This does not represent all bus stops in NYC, just shelters. Although the exact number of bus stops is difficult to find, the MTA states that there are 327 bus routes in the five boroughs and countless stops in between. To make the data manageable both in computation and visualization, this study only selects 50 at random. This limits the amount of data points and does not fully capture the bus network.
 -   The OSRM routing service may not always find a route between two points, especially if they are very close together or in areas with limited road connectivity. The code removes these unroutable routes, and they are not shown in the data.
@@ -350,7 +384,7 @@ The results indicate that the optimized OSRM routes are significantly longer tha
 
 Future research could expand the sample size to include more origin-destination pairs, or even all bus stops. Incorporating real-world travel time data, traffic patterns, and transit schedules could provide a more comprehensive understanding of route efficiency. Further analysis could also explore the impact of different modes of transportation, such as cycling or walking, on route optimization and efficiency.
 
-# References
+# References:
 
 - A. J. Smit. *Mapping with Google in R*. [Source](https://ajsmit.github.io/Intro_R_Official/mapping-google.html).
 - CRAN. *stplanr Paper and Vignettes*. [Source](https://cran.r-project.org/web/packages/stplanr/vignettes/stplanr-paper.html). 
