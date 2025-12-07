@@ -15,16 +15,21 @@ editor: visual
 
 # Introduction:
 
-This project uses stplanr transport modeling package to design an optimal transport route for bus or cycle routes in New York City. Stplanr is a transport planning visualization R package that can be used to plan transit networks, in addition to transit planning elements such as identifying transit catchment areas, origin/destination data and ride frequency visualizations, among others. In their white paper, the devlopers of stplanr call for an accountable, transparent and democratized transit planning system that doesn’t rely on proprietary and often vastly different data sources and data processing softwares. Although the package can visualize a whole host of data, this project will focus on comparing direct desire lines or “Euclidean” routes (as the crow flies), existing bus networks and stplanr’s optimized routes. To wit: this can map the efficiency of the bus routes compared to the most direct route possible if there were no built environment factors in the way.
+This project uses stplanr and OSRM transport modeling package to compare optimal and euclidean transport paths for bus routes in New York City. Stplanr is a transport planning visualization R package that can be used to plan transit networks, in addition to transit planning elements such as identifying transit catchment areas, buffers, origin/destination data and ride frequency visualizations, among others. In their white paper, the devlopers of stplanr call for an accountable, transparent and democratized transit planning system that doesn’t rely on proprietary and often vastly different data sources and data processing softwares. As a result, they created stplanr so that regular data analysts can analyze data rather than relying on a more mysterious algorithm.
+
+Although the package can visualize a whole host of data, this project will focus on comparing direct desire lines or “Euclidean” routes (as the crow flies), existing bus networks and stplanr’s optimized routes. Essentially: this can map the efficiency of the bus routes compared to the most direct route possible if there were no built environment factors in the way.
 
 # Methods:
 
-To adequately compare desire lines, bus routes, and the most efficient routes with the current street network, this project will require at minimum three data sources. Each of these will be sourced separately and overlaid onto each other:
+To adequately compare desire lines, and bus routes using the most efficient routes with the current street network, this project will require the below data sources. Each of these will be sourced and overlaid onto each other:
 
--   **Data Source:** leaflet data for basemap
+-   **Data Source:** stplanr package for basemap
+    -   **Methods:** stplanr will be used for its integration into OSRM data. In short, this will be used to create desire lines from origin-desitnation pairs identified using the data from New York City Open Data below. Specifically, "od2line" and "route" functions will be used. Some limitations of this package are that some of it's functionality has migrated over to sf package, as they do fundamentally the same thing.\
+    -   **Source:** [stplanr CRAN](https://cran.r-project.org/web/packages/stplanr/vignettes/stplanr-paper.html)
+-   **Data Source:** leaflet package for basemap
     -   **Methods:** This can be sourced directly into R by installing the leaflet package. It is an interactive map so the user can navigate it.\
     -   **Source:** [Leaflet for R](https://rstudio.github.io/leaflet/)
--   **Data Source:** OpenStreetMap (OSMR) data for transit data, either bus or cycle routes, this is used as the route vector data.
+-   **Data Source:** OpenStreetMap (OSMR) data for transit data, either bus or cycle routes, this is used as the route vector data. This can also calculate geometry type, and time.
     -   **Methods:** This can be sourced directly into R, with an overpass query.\
     -   **Source:** [Mapping with OpenStreetMap in R](https://ajsmit.github.io/Intro_R_Official/mapping-google.html)
 -   **Data Source:** NYC Open Data for Bus Shelter locations\
@@ -35,22 +40,36 @@ To adequately compare desire lines, bus routes, and the most efficient routes wi
     -   **Methods:** This is brought into R as a shapefile. This will provide the basemap boundary for NYC to ensure all data is within the city limits, represented on the leaflet map.
     -   **Source:** [NYC Borough Boundaries, Department of City Planning](https://www.nyc.gov/content/planning/pages/resources/datasets/borough-boundaries)
 
+The overlay of these elements using leaflet will provide an interactive map that compares desire lines, existing bus routes, and optimized routes. The stplanr package will be used to calculate the optimized routes based on the bus shelter locations and the OpenStreetMap data. The comparison will be visualized using different colors and line styles for each type of route. This will be randomized with a 50 origin-destination pairs to make the computation manageable.
+
 # Data Preparation:
 
 -   Load the necessary R packages for spatial data manipulation and visualization (e.g., ggmap, dplyr, stplanr, osmdata, sf, leaflet).
 -   Import the NYC basemap shapefile and bus shelter CSV data into R.
 -   Convert the bus shelter data into an sf object with appropriate coordinate reference system (CRS).
+-   Create a bounding box for NYC to limit the data extraction from OpenStreetMap.
+-   Use the osmdata package to extract primary and secondary road data from OpenStreetMap within the NYC bounding box.
+-   Prepare the bus shelter data by adding unique IDs for each shelter to facilitate origin-destination pairing.
+-   Generate random origin-destination pairs from the bus shelter data, ensuring that no shelter is paired with itself.
+-   Create desire lines (Euclidean routes) between the origin-destination pairs using the od2line function from stplanr.
+-   Compare the desire lines with optimized routes calculated using the route_osrm function from stplanr.
+-   Display this data in a table & graph
 
 # Terms:
 
 -   **Desire Lines & "Euclidean":** Straight lines connecting origin and destination points, representing the most direct path between them.
 -   **OSRM:** Open Street Routing Machine, a routing engine that uses Open Street Map data to calculate routes, shortest routes, travel times, and can be used to make travel time maps, distance routing for car, bike and walking.
+-   **O:** Origin Data, that is, where the trip starts.
+-   **D:** Destination Data, that is, where the trip ends.
+-   **R:** Route.
+-   **od2line:** A function in stplanr that converts origin-destination data into spatial lines (desire lines).
+-   **route_osrm:** Another function in stplanr that calculates the optimal route between two points using OSRM.
 
 # Interactive Map:
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
-#install.packages("plotly")
 #install libraries
+
 library(ggplot2) #for plotting graphs
 library(dplyr) #data manipulation
 library(stplanr) #od2line calculation, origin-destination programming
@@ -67,6 +86,7 @@ library(plotly) #for interactive plots
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
 #SHAPEFILES AND MAP
+#This first step creates the basemap and brings in the data for processing in later chunks
 
 bbox <- c(left = -73.96, bottom = 40.54, right = -73.70, top = 40.81)
 #create bounding box for NYC
@@ -79,7 +99,6 @@ nyc_sf <- st_read(nyc_map, quiet =TRUE)
 #bring in nyc_map as a sf
 
 shelters_sf <- read_csv("data/Bus_Stop_Shelter_20251020.csv")
-#NOTE: REPLACE WITH DATA WHEN USING QUARTO!
 #this brings in the bus stop shelter information. source: https://data.cityofnewyork.us/Transportation/Bus-Stop-Shelters/qafz-7myz
 
 shelters_sf_fix <- st_as_sf(shelters_sf, coords = c("Longitude","Latitude"), crs = 4326)
@@ -99,6 +118,7 @@ osm_data <- opq(bbox = bbox) %>%
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
 # STPLANR FUNCTIONS
+#this step combines both stplanr and sf functions to create desire lines and optimized routes between O-D pairs
 
 shelters_sf_fix <- shelters_sf_fix %>%
   mutate(id = paste0("S", row_number()))
@@ -134,7 +154,7 @@ route_single <- function(o_id, d_id) { #function to create a single route betwee
 }
 
 routes_list <- purrr::map2(flow_all$o, flow_all$d, route_single)
-#create routes for all origin-destination pairs using the route_single function
+#create routes for all origin-destination pairs using the route_single function by routing in paralell
 routes_list <- routes_list[!sapply(routes_list, is.null)]
 #remove any NULL results (failed routes)
 routes_sf <- do.call(rbind, routes_list)
@@ -144,6 +164,7 @@ routes_sf <- do.call(rbind, routes_list)
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
 #ROUTE & DESIRE LENGTH CALCULATION, MEAN & PCT CHANGE
+#these calculations are for printing as a cleaned up presentable table through kable, and comparing means and providing data to be displayed in a popup on the leaflet map
 
 routes_projection <- st_transform(routes_sf, 32618)
 desire_projection <- st_transform(desire_lines_all, 32618)
@@ -216,6 +237,7 @@ mean_lengths_print <- mean_lengths %>%
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
 #LEAFLET PREP
+#this step makes sure all the coordinate systems are correct and creates popup data and color palette for the leaflet map
 
 nyc_leaflet  <- st_transform(nyc_sf, 4326)
 roads_leaflet <- st_transform(osm_data$osm_lines, 4326)
@@ -261,6 +283,7 @@ selected_shelters <- shelters_sf_fix %>%
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
 #LEAFLET MAP
+#this step creates the interactive leaflet map with all the data layers
 
 leaflet() %>%
   addProviderTiles("CartoDB.Positron") %>%
@@ -347,9 +370,11 @@ kable(col.names = c("Origin", "Destination", "Route Length (km)", "Desire Line L
         caption = "Comparison of Route Lengths and Desire Line Lengths, By Difference") %>%
   kable_styling(full_width = FALSE, position = "center")
 ```
-# Figures: 
+
+# Figures:
 
 ```{r, eval=TRUE, warnings=FALSE, message=FALSE}
+# Bar Plot of Differences via plotly
 gg1 <- ggplot(lengths_tbl_print, aes(x = ID, y = difference, text = paste("Origin: ", origin, "<br>Destination: ", destination))) +
   geom_bar(stat = "identity") +
   scale_fill_viridis_b()+
@@ -364,6 +389,7 @@ gg1_plotly <- ggplotly(gg1)
 
 gg1_plotly
 ```
+
 # Results:
 
 The mean route length for the optimized routes for this particular sample run is **`r round(mean_route / 1000, 2)`** km, while the mean Euclidean desire line length is **`r round(mean_desire / 1000, 2)`** km. This represents a percent change of **`r round(percent_change, 2)`%** longer for the optimized routes compared to the direct desire lines. The interactive map above visualizes these routes, with desire lines colored based on their lengths and Open Street Routing Machine (OSRM) routes similarly colored with a different theme.
@@ -371,6 +397,14 @@ The mean route length for the optimized routes for this particular sample run is
 # Discussion:
 
 The results indicate that the optimized OSRM routes are significantly longer than the direct desire lines, which is generally expected given the constraints of the built environment and road network. The percent change of **`r round(percent_change, 2)`%** suggests that while the desire lines represent the most direct path between two points, real-world travel must navigate around obstacles, follow roadways, and adhere to traffic regulations etc.
+
+There were many obstacles when creating this project. Firstly, the stplanr has a number of vestigial functions that are served by "sf" package, such as "st_as_sf", which made it difficult to find the right functions to use, often the code would break and I would have to go searching for the reason.
+
+The OSRM routing service can also be unreliable at times, particularly for points that are very close together or in areas with limited road connectivity. This led to some origin-destination pairs not being counted as a "route", which had to be filtered out of the final analysis. At first, these routes did not intersect with the correct Bus Shelters (ie: the routes were truly random, instead of 50 pairs, there were essentially 100).
+
+As a result, the purrr package was used to map over the origin-destination pairs to create overlapping routes, which was a complex package to comprehend at first. Only the map2 function, which essentially applies a function to two lists in parallel, was used in this project.
+
+Other functions such as "scales" (for "comma" & "round" functions tidying up data for presentation in a table), didn't work properly at first, as they change the numeric to a character. Plotly and kablextra were straightforward enough.
 
 # Limitations:
 
@@ -382,16 +416,17 @@ The results indicate that the optimized OSRM routes are significantly longer tha
 
 # Future:
 
-Future research could expand the sample size to include more origin-destination pairs, or even all bus stops. Incorporating real-world travel time data, traffic patterns, and transit schedules could provide a more comprehensive understanding of route efficiency. Further analysis could also explore the impact of different modes of transportation, such as cycling or walking, on route optimization and efficiency.
+-   **Methods**: Future research could expand the sample size to include more origin-destination pairs, or even all bus stops. Incorporating real-world travel time data, traffic patterns, and transit schedules could provide a more comprehensive understanding of route efficiency. Further analysis could also explore the impact of different modes of transportation, such as cycling or walking, on route optimization and efficiency.
+
+-   **Representation**: A number of visual elements could be changed, such as mapping the two routes together, so that when you select one, the other one is highlighted. Different color schemes could be used for more differentiation of routes and desire lines. A buffer could be added to the polylines to make it easier for the user to select the polylines to see the popup information. Right now, you need to click directly on it which is difficult.
 
 # References:
 
-- A. J. Smit. *Mapping with Google in R*. [Source](https://ajsmit.github.io/Intro_R_Official/mapping-google.html).
-- CRAN. *stplanr Paper and Vignettes*. [Source](https://cran.r-project.org/web/packages/stplanr/vignettes/stplanr-paper.html). 
-- NYC Open Data. *Bus Stop Shelters Dataset*. [Source](https://data.cityofnewyork.us/Transportation/Bus-Stop-Shelters/qafz-7myz). 
-- Robin Lovelace. *stplanr: R Package Documentation*. [Source](https://docs.ropensci.org/stplanr/).
-- openstreetmap.de. *OpenStreetMap Routing Service*. [Source](https://routing.openstreetmap.de/).
-- RStudio. *Leaflet for R*. [Source](https://rstudio.github.io/leaflet/).
-- MTA. *New York City Transit Subway and Bus Facts 2019*. [Source](https://www.mta.info/agency/new-york-city-transit/subway-bus-facts-2019). 
-- NYC.gov. *NYC Borough Boundaries Dataset*. [Source](https://www.nyc.gov/content/planning/pages/resources/datasets/borough-boundaries). 
-
+-   A. J. Smit. *Mapping with Google in R*. [Source](https://ajsmit.github.io/Intro_R_Official/mapping-google.html).
+-   CRAN. *stplanr Paper and Vignettes*. [Source](https://cran.r-project.org/web/packages/stplanr/vignettes/stplanr-paper.html).
+-   NYC Open Data. *Bus Stop Shelters Dataset*. [Source](https://data.cityofnewyork.us/Transportation/Bus-Stop-Shelters/qafz-7myz).
+-   Robin Lovelace. *stplanr: R Package Documentation*. [Source](https://docs.ropensci.org/stplanr/).
+-   openstreetmap.de. *OpenStreetMap Routing Service*. [Source](https://routing.openstreetmap.de/).
+-   RStudio. *Leaflet for R*. [Source](https://rstudio.github.io/leaflet/).
+-   MTA. *New York City Transit Subway and Bus Facts 2019*. [Source](https://www.mta.info/agency/new-york-city-transit/subway-bus-facts-2019).
+-   NYC.gov. *NYC Borough Boundaries Dataset*. [Source](https://www.nyc.gov/content/planning/pages/resources/datasets/borough-boundaries).
